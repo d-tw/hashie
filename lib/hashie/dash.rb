@@ -183,6 +183,8 @@ module Hashie
       end
     end
 
+    alias_method :assert_required_properties_set!, :assert_required_attributes_set!
+
     def assert_property_set!(property)
       fail_property_required_error!(property) if send(property).nil?
     end
