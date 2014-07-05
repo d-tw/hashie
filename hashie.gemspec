@@ -15,6 +15,8 @@ Gem::Specification.new do |gem|
   gem.version       = Hashie::VERSION
   gem.license       = 'MIT'
 
+  gem.add_dependency 'axiom-types'
+
   gem.add_development_dependency 'rake'
   gem.add_development_dependency 'rspec', '~> 3.0'
 end
