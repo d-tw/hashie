@@ -254,6 +254,99 @@ p.update_attributes!(occupation: nil)
 p.occupation   # => 'Rubyist'
 ```
 
+Constraints can be applied to the properties.
+
+### Example:
+
+```ruby
+class Person < Hashie::Dash
+  property :name, constraints: { type: String }
+  property :age,  constraints: { type: Integer, minimum: 0 }
+  property :native_language, constraints: { in: ['English','French','Spanish'] }
+end
+
+p = Person.new                  
+p.name = 'Janet'              # => 'Janet'
+p.name = :janet               # => ArgumentError: The value 'janet:Symbol' does not meet the constraints of the property 'name' for Person.
+p.age  = 10                   # => 10
+p.age  = 10.5                 # => ArgumentError: The value '10.5:Float' does not meet the constraints of the property 'age' for Person.
+p.age  = -3                   # => ArgumentError: The value '-3:Fixnum' does not meet the constraints of the property 'age' for Person.
+p.native_language = 'English' # => 'English'
+p.native_language = 'German'  # => ArgumentError: The value 'German:String' does not meet the constraints of the property 'native_language' for Person.
+```
+
+Built-in constraints are:
+
+#### All types
+- ```:type```: checks that the value is of the specified type
+- ```:in```: checks that the value is in the specified array of values
+
+#### String & Symbol
+- ```:maximum_length```
+- ```:minimum_length```
+- ```:length```
+
+#### Array
+- ```:member_type```
+
+#### Hash
+- ```:key_type```
+- ```:value_type```
+
+#### Numeric Types & Date Types
+- ```:maximum```
+- ```:minimum```
+
+It is also possible to build custom constraints for more specific cases. 
+
+### Example:
+
+```ruby
+class Simon < Hashie::Dash
+  
+  # Build a block that takes the value and returns a boolean
+  # that indicates the validity of the value
+  simon_says = ->(value) do
+    value.match(/^Simon says/)
+  end
+  
+  property :command, constraints: { type: String, my_custom_constraint: simon_says }
+end
+
+s = Simon.new
+s.command = "Simon says write unit tests" # => "Simon says write unit tests" 
+s.command = "Eat healthily"               # => ArgumentError: The value 'Eat healthily:String' does not meet the constraints of the property 'command' for Simon.
+```
+
+Custom constraints can also be registered across all subclasses of Dash and referred to by name. This method also allows the constraints to accept parameters.
+
+### Example
+
+First we register the constraint with Hashie::Dash (or any subclass). A constraint builder is a block that accepts 0 or more parameters and that returns a block that accepts one value and returns a boolean that indicates the validity of the value.
+
+This builder creates a constraint which checks if a value has the specified prefix.
+```ruby
+Hashie::Dash.register_constraint_builder(:string_prefix) do |prefix|
+  ->(value) { value.match(/^#{prefix}/) }
+end
+
+Hashie::Dash.register_constraint_builder(:string_suffix) do |suffix|
+  ->(value) { value.match(/#{suffix}$/) }
+end
+```
+
+It's now possible to reference that constraint when creating other Dash subclasses.
+
+```ruby
+class SirYesSir < Hashie::Dash
+  property :reply, constraints: { type: String, string_prefix: "Sir!", string_suffix: "Sir!" }
+end
+
+s = SirYesSir.new
+s.reply = "Yes"           # => ArgumentError: The value 'Yes:String' does not meet the constraints of the property 'reply' for SirYesSir.
+s.reply = "Sir! Yes Sir!" # => "Sir! Yes Sir!"
+```
+
 Properties defined as symbols are not the same thing as properties defined as strings.
 
 ### Example:
