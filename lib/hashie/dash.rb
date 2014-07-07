@@ -2,7 +2,7 @@ require 'hashie/hash'
 require 'set'
 require 'axiom-types'
 
-class Boolean; end
+module Boolean; end
 
 module Hashie
   # A Dash is a 'defined' or 'discrete' Hash, that is, a Hash
