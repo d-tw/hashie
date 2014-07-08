@@ -440,3 +440,25 @@ describe MixedPropertiesTest do
     expect { subject['symbol'] = 'updated' }.to raise_error(NoMethodError)
   end
 end
+
+class CachedProcDashTest < Hashie::Dash
+  property :normal_property
+  property :proc_property, disable_proc_cache: true
+end
+
+describe CachedProcDashTest do
+  subject do CachedProcDashTest.new(
+      proc_property: -> { SecureRandom.hex(2) },
+      normal_property: -> { SecureRandom.hex(2) }
+    )
+  end
+
+  context 'when retrieving a cached property' do
+    it { expect(subject.normal_property).to eql(subject.normal_property) }
+  end
+
+  context 'when retrieving a normal property' do
+    it { expect(subject.proc_property).to_not eql(subject.proc_property) }
+  end
+
+end
