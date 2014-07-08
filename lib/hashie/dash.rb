@@ -33,6 +33,7 @@ module Hashie
     #
     def self.property(property_name, options = {})
       properties << property_name
+      property_options[property_name.to_sym] = options.dup.freeze
 
       if options.key?(:default)
         defaults[property_name] = options[:default]
@@ -61,12 +62,15 @@ module Hashie
       def constraint_builders
         @@constraint_builders
       end
+
+      attr_reader :required_properties, :property_options
     end
     instance_variable_set('@properties', Set.new)
     instance_variable_set('@defaults', {})
     instance_variable_set('@required_properties', Set.new)
     instance_variable_set('@property_constraints', {})
     class_variable_set('@@constraint_builders', {})
+    instance_variable_set('@property_options', {})
 
     def self.inherited(klass)
       super
@@ -75,6 +79,7 @@ module Hashie
       klass.instance_variable_set('@defaults', defaults.dup)
       klass.instance_variable_set('@required_properties', required_properties.dup)
       klass.instance_variable_set('@property_constraints', property_constraints.dup)
+      klass.instance_variable_set('@property_options', property_options.dup)
     end
 
     # Check to see if the specified property has already been
@@ -198,7 +203,9 @@ module Hashie
       value = super(property)
       # If the value is a lambda, proc, or whatever answers to call, eval the thing!
       if value.is_a? Proc
-        self[property] = value.call # Set the result of the call as a value
+        result = value.call
+        self[property] = result if property_caches_proc_values?(property) # Set the result of the call as a value
+        result
       else
         yield value if block_given?
         value
@@ -264,6 +271,15 @@ module Hashie
           end
         end
       end
+    end
+
+    def property_options
+      self.class.property_options
+    end
+
+    def property_caches_proc_values?(property_name)
+      property_name_sym = property_name.to_sym
+      property_options[property_name_sym].key?(:disable_proc_cache) ? !property_options[property_name_sym][:disable_proc_cache] : true
     end
 
     def initialize_attributes(attributes)
