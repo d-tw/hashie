@@ -17,7 +17,9 @@ module Hashie
     # * <tt>:transform_with</tt> - Specify a lambda to be used to convert value
     # without using the :from option. It transform the property itself.
     def self.property(property_name, options = {})
-      super
+      options       = TrashOptions.new(options)
+      super_options = options.select { |key, value| TrashOptions.superclass.properties.include?(key.to_sym) }
+      super(property_name, super_options)
 
       options[:from] = options[:from] if options[:from]
 
@@ -105,5 +107,11 @@ module Hashie
       end
       super attributes_copy
     end
+  end
+  
+  class TrashOptions < DashOptions
+    property :transform_with, proc_call_on_access: false
+    property :from
+    property :with, proc_call_on_access: false
   end
 end

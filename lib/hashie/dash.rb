@@ -31,46 +31,66 @@ module Hashie
     #   property, to raise an error if a value is unset in a new or
     #   existing Dash.
     #
+    
     def self.property(property_name, options = {})
       properties << property_name
-      property_options[property_name.to_sym] = options.dup.freeze
-
+      options = property_options[property_name.to_sym] = DashOptions.new(options).freeze
+    
       if options.key?(:default)
         defaults[property_name] = options[:default]
       elsif defaults.key?(property_name)
         defaults.delete property_name
       end
-
+    
+      build_property_method(property_name)
+    
+      if defined? @subclasses
+        @subclasses.each { |klass| klass.property(property_name, options) }
+      end
+      
+      required_properties << property_name               if options.key?(:required) ? options[:required] : false
+      set_constraint(property_name, options.constraints) if options.key?(:constraints)
+    end
+    
+    def self.build_property_method(property_name)
       unless instance_methods.map { |m| m.to_s }.include?("#{property_name}=")
         define_method(property_name) { |&block| self.[](property_name, &block) }
         property_assignment = property_name.to_s.concat('=').to_sym
         define_method(property_assignment) { |value| self.[]=(property_name, value) }
       end
-
-      if defined? @subclasses
-        @subclasses.each { |klass| klass.property(property_name, options) }
-      end
-      required_properties << property_name if options.delete(:required)
-      set_constraint(property_name, options.delete(:constraints)) if options.key?(:constraints)
     end
-
+    
+    def self.own_properties
+      properties - superclass.properties
+    end
+    
     class << self
-      attr_reader :properties, :defaults
-      attr_reader :required_properties
-      attr_reader :property_constraints
-
+      private :build_property_method
+      
       def constraint_builders
         @@constraint_builders
       end
 
-      attr_reader :required_properties, :property_options
+      method_builder = ->(method, default_value) do
+        define_method(method) do
+          variable_name = "@#{method}"
+          unless instance_variable_defined?(variable_name)
+            instance_variable_set(variable_name, default_value)
+          end
+          instance_variable_get(variable_name)
+        end
+      end
+
+      [:properties, :required_properties].each do |method|
+        method_builder.call(method, Set.new)
+      end
+
+      [:defaults, :property_constraints, :property_options].each do |method|
+        method_builder.call(method, {})
+      end
     end
-    instance_variable_set('@properties', Set.new)
-    instance_variable_set('@defaults', {})
-    instance_variable_set('@required_properties', Set.new)
-    instance_variable_set('@property_constraints', {})
+
     class_variable_set('@@constraint_builders', {})
-    instance_variable_set('@property_options', {})
 
     def self.inherited(klass)
       super
@@ -202,9 +222,9 @@ module Hashie
       assert_property_exists! property
       value = super(property)
       # If the value is a lambda, proc, or whatever answers to call, eval the thing!
-      if value.is_a? Proc
+      if value.is_a?(Proc) && call_proc_on_access_for_property?(property)
         result = value.call
-        self[property] = result if property_caches_proc_values?(property) # Set the result of the call as a value
+        self[property] = result if cache_proc_values_for_property?(property) # Set the result of the call as a value
         result
       else
         yield value if block_given?
@@ -277,9 +297,12 @@ module Hashie
       self.class.property_options
     end
 
-    def property_caches_proc_values?(property_name)
-      property_name_sym = property_name.to_sym
-      property_options[property_name_sym].key?(:disable_proc_cache) ? !property_options[property_name_sym][:disable_proc_cache] : true
+    def cache_proc_values_for_property?(property_name)
+      property_options[property_name.to_sym].proc_cache_results
+    end
+
+    def call_proc_on_access_for_property?(property_name)
+      property_options[property_name.to_sym].proc_call_on_access
     end
 
     def initialize_attributes(attributes)
@@ -338,5 +361,13 @@ module Hashie
     def self.fail_invalid_constraint_key!(property, key)
       fail ArgumentError, "The constraint key '#{key}' is invalid for '#{property}' for #{name}."
     end
+  end
+
+  class DashOptions < Dash
+    property :default 
+    property :constraints
+    property :required, default: false, constraints: { in: [true, false] }
+    property :proc_cache_results,  default: true, constraints: { in: [true, false] }
+    property :proc_call_on_access, default: true, constraints: { in: [true, false] }
   end
 end

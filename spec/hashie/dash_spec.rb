@@ -628,22 +628,43 @@ describe BooleanConstraintsTest do
 end
 
 class CachedProcDashTest < Hashie::Dash
-  property :normal_property
-  property :proc_property, disable_proc_cache: true
+  property :cached_property
+  property :uncached_property, proc_cache_results: false
 end
 
 describe CachedProcDashTest do
   subject do CachedProcDashTest.new(
-      proc_property: -> { SecureRandom.hex(2) },
-      normal_property: -> { SecureRandom.hex(2) }
+      cached_property: -> { SecureRandom.hex(2) },
+      uncached_property: -> { SecureRandom.hex(2) }
     )
   end
 
   context 'when retrieving a cached property' do
-    it { expect(subject.normal_property).to eql(subject.normal_property) }
+    it { expect(subject.cached_property).to eql(subject.cached_property) }
   end
 
-  context 'when retrieving a normal property' do
-    it { expect(subject.proc_property).to_not eql(subject.proc_property) }
+  context 'when retrieving an uncached property' do
+    it { expect(subject.uncached_property).to_not eql(subject.uncached_property) }
+  end
+end
+
+class CalledProcDashTest < Hashie::Dash
+  property :called_property
+  property :uncalled_property, proc_call_on_access: false
+end
+
+describe CalledProcDashTest do
+  subject do CalledProcDashTest.new(
+      called_property: -> { SecureRandom.hex(2) },
+      uncalled_property: -> { SecureRandom.hex(2) }
+    )
+  end
+
+  context 'when retrieving a called property' do
+    it { expect(subject.called_property).to be_a(String) }
+  end
+
+  context 'when retrieving an uncalled property' do
+    it { expect(subject.uncalled_property).to be_a(Proc) }
   end
 end
