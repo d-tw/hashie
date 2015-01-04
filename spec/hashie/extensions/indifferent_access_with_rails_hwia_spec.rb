@@ -1,4 +1,8 @@
+# This set of tests verifies that Hashie::Extensions::IndifferentAccess works with
+# ActiveSupport HashWithIndifferentAccess hashes. See #164 and #166 for details.
+
 require 'spec_helper'
+require 'active_support/hash_with_indifferent_access'
 
 describe Hashie::Extensions::IndifferentAccess do
   class IndifferentHashWithMergeInitializer < Hash
@@ -26,98 +30,45 @@ describe Hashie::Extensions::IndifferentAccess do
     end
   end
 
-  class IndifferentHashWithDash < Hashie::Dash
-    include Hashie::Extensions::IndifferentAccess
-    property :foo
-  end
-
-  describe 'when included in dash' do
-    let(:params) { { foo: 'bar' } }
-    subject { IndifferentHashWithDash.new(params) }
-
-    it 'initialize with a symbol' do
-      expect(subject.foo).to eq params[:foo]
-    end
+  class CoercableHash < Hash
+    include Hashie::Extensions::Coercion
+    include Hashie::Extensions::MergeInitializer
   end
 
   shared_examples_for 'hash with indifferent access' do
     it 'is able to access via string or symbol' do
-      h = subject.build(abc: 123)
+      indifferent_hash = ActiveSupport::HashWithIndifferentAccess.new(abc: 123)
+      h = subject.build(indifferent_hash)
       expect(h[:abc]).to eq 123
       expect(h['abc']).to eq 123
     end
 
     describe '#values_at' do
       it 'indifferently finds values' do
-        h = subject.build(:foo => 'bar', 'baz' => 'qux')
+        indifferent_hash = ActiveSupport::HashWithIndifferentAccess.new(
+          :foo => 'bar', 'baz' => 'qux'
+        )
+        h = subject.build(indifferent_hash)
         expect(h.values_at('foo', :baz)).to eq %w(bar qux)
-      end
-
-      it 'returns the same instance of the hash that was set' do
-        hash = Hash.new
-        h = subject.build(foo: hash)
-        expect(h.values_at(:foo)[0]).to be(hash)
-      end
-
-      it 'returns the same instance of the array that was set' do
-        array = Array.new
-        h = subject.build(foo: array)
-        expect(h.values_at(:foo)[0]).to be(array)
-      end
-
-      it 'returns the same instance of the string that was set' do
-        str = 'my string'
-        h = subject.build(foo: str)
-        expect(h.values_at(:foo)[0]).to be(str)
-      end
-
-      it 'returns the same instance of the object that was set' do
-        object = Object.new
-        h = subject.build(foo: object)
-        expect(h.values_at(:foo)[0]).to be(object)
       end
     end
 
     describe '#fetch' do
       it 'works like normal fetch, but indifferent' do
-        h = subject.build(foo: 'bar')
+        indifferent_hash = ActiveSupport::HashWithIndifferentAccess.new(foo: 'bar')
+        h = subject.build(indifferent_hash)
         expect(h.fetch(:foo)).to eq h.fetch('foo')
         expect(h.fetch(:foo)).to eq 'bar'
-      end
-
-      it 'returns the same instance of the hash that was set' do
-        hash = Hash.new
-        h = subject.build(foo: hash)
-        expect(h.fetch(:foo)).to be(hash)
-      end
-
-      it 'returns the same instance of the array that was set' do
-        array = Array.new
-        h = subject.build(foo: array)
-        expect(h.fetch(:foo)).to be(array)
-      end
-
-      it 'returns the same instance of the string that was set' do
-        str = 'my string'
-        h = subject.build(foo: str)
-        expect(h.fetch(:foo)).to be(str)
-      end
-
-      it 'returns the same instance of the object that was set' do
-        object = Object.new
-        h = subject.build(foo: object)
-        expect(h.fetch(:foo)).to be(object)
-      end
-
-      it 'yields with key name if key does not exists' do
-        h = subject.build(a: 0)
-        expect(h.fetch(:foo) { |key| ['default for', key] }).to eq ['default for', 'foo']
       end
     end
 
     describe '#delete' do
       it 'deletes indifferently' do
-        h = subject.build(:foo => 'bar', 'baz' => 'qux')
+        indifferent_hash = ActiveSupport::HashWithIndifferentAccess.new(
+          :foo => 'bar',
+          'baz' => 'qux'
+        )
+        h = subject.build(indifferent_hash)
         h.delete('foo')
         h.delete(:baz)
         expect(h).to be_empty
@@ -125,7 +76,10 @@ describe Hashie::Extensions::IndifferentAccess do
     end
 
     describe '#key?' do
-      let(:h) { subject.build(foo: 'bar') }
+      let(:h) do
+        indifferent_hash = ActiveSupport::HashWithIndifferentAccess.new(foo: 'bar')
+        subject.build(indifferent_hash)
+      end
 
       it 'finds it indifferently' do
         expect(h).to be_key(:foo)
@@ -141,7 +95,10 @@ describe Hashie::Extensions::IndifferentAccess do
     end
 
     describe '#update' do
-      let(:h) { subject.build(foo: 'bar') }
+      let(:h) do
+        indifferent_hash = ActiveSupport::HashWithIndifferentAccess.new(foo: 'bar')
+        subject.build(indifferent_hash)
+      end
 
       it 'allows keys to be indifferent still' do
         h.update(baz: 'qux')
@@ -161,7 +118,10 @@ describe Hashie::Extensions::IndifferentAccess do
     end
 
     describe '#replace' do
-      let(:h) { subject.build(foo: 'bar').replace(bar: 'baz', hi: 'bye') }
+      let(:h) do
+        indifferent_hash = ActiveSupport::HashWithIndifferentAccess.new(foo: 'bar')
+        subject.build(indifferent_hash).replace(bar: 'baz', hi: 'bye')
+      end
 
       it 'returns self' do
         expect(h).to be_a(subject)
@@ -185,7 +145,10 @@ describe Hashie::Extensions::IndifferentAccess do
 
     describe '#try_convert' do
       describe 'with conversion' do
-        let(:h) { subject.try_convert(foo: 'bar') }
+        let(:h) do
+          indifferent_hash = ActiveSupport::HashWithIndifferentAccess.new(foo: 'bar')
+          subject.try_convert(indifferent_hash)
+        end
 
         it 'is a subject' do
           expect(h).to be_a(subject)
@@ -215,5 +178,19 @@ describe Hashie::Extensions::IndifferentAccess do
   describe 'with try convert initializer' do
     subject { IndifferentHashWithTryConvertInitializer }
     it_should_behave_like 'hash with indifferent access'
+  end
+
+  describe 'with coercion' do
+    subject { CoercableHash }
+
+    let(:instance) { subject.new }
+
+    it 'supports coercion for ActiveSupport::HashWithIndifferentAccess' do
+      subject.coerce_key :foo, ActiveSupport::HashWithIndifferentAccess.new(Coercable => Coercable)
+      instance[:foo] = { 'bar_key' => 'bar_value', 'bar2_key' => 'bar2_value' }
+      expect(instance[:foo].keys).to all(be_coerced)
+      expect(instance[:foo].values).to all(be_coerced)
+      expect(instance[:foo]).to be_a(ActiveSupport::HashWithIndifferentAccess)
+    end
   end
 end

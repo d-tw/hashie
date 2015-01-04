@@ -1,14 +1,49 @@
 ## Next
 
-* [#179](https://github.com/intridea/hashie/pull/179) Mash#values_at will convert each key before doing the lookup - [@nahiluhmot](https://github.com/nahiluhmot).
+* [#247](https://github.com/intridea/hashie/pull/247): Fixed #stringify_keys and #symbolize_keys collision with ActiveSupport - [@bartoszkopinski](https://github.com/bartoszkopinski).
+* [#249](https://github.com/intridea/hashie/pull/249): SafeAssignment will now also protect hash-style assignments - [@jrochkind](https://github.com/jrochkind).
+* [#251](https://github.com/intridea/hashie/pull/251): Added block support to indifferent access #fetch - [@jgraichen](https://github.com/jgraichen).
+* [#252](https://github.com/intridia/hashie/pull/252): Added support for conditionally required Hashie::Dash attributes - [@ccashwell](https://github.com/ccashwell).
+* [#256](https://github.com/intridia/hashie/pull/256): Inherit key coercions - [@Erol](https://github.com/Erol).
+* [#259](https://github.com/intridia/hashie/pull/259): Fixed handling of default proc values in Mash - [@Erol](https://github.com/Erol).
+* [#260](https://github.com/intridia/hashie/pull/260): Added block support to Extensions::DeepMerge - [@galathius](https://github.com/galathius).
+* [#254](https://github.com/intridea/hashie/pull/254): Added public utility methods for stringify and symbolize keys - [@maxlinc](https://github.com/maxlinc).
+* Your contribution here.
+
+## 3.3.2 (11/26/2014)
+
+* [#233](https://github.com/intridea/hashie/pull/233): Custom error messages for required properties in Hashie::Dash subclasses - [@joss](https://github.com/joss).
+* [#231](https://github.com/intridea/hashie/pull/231): Added support for coercion on class type that inherit from Hash - [@gregory](https://github.com/gregory).
+* [#228](https://github.com/intridea/hashie/pull/228): Made Hashie::Extensions::Parsers::YamlErbParser pass template filename to ERB - [@jperville](https://github.com/jperville).
+* [#224](https://github.com/intridea/hashie/pull/224): Merging Hashie::Mash now correctly only calls the block on duplicate values - [@amysutedja](https://github.com/amysutedja).
+* [#221](https://github.com/intridea/hashie/pull/221): Reduce amount of allocated objects on calls with suffixes in Hashie::Mash - [@kubum](https://github.com/kubum).
+* [#245](https://github.com/intridea/hashie/pull/245): Added Hashie::Extensions::MethodAccessWithOverride to autoloads - [@Fritzinger](https://github.com/Fritzinger).
+
+## 3.3.1 (8/26/2014)
+
+* [#183](https://github.com/intridea/hashie/pull/183): Added Mash#load with YAML file support - [@gregory](https://github.com/gregory).
+* [#195](https://github.com/intridea/hashie/pull/195): Ensure that the same object is returned after injecting IndifferentAccess - [@michaelherold](https://github.com/michaelherold).
+* [#201](https://github.com/intridea/hashie/pull/201): Hashie::Trash transforms can be inherited - [@fobocaster](https://github.com/fobocaster).
+* [#189](https://github.com/intridea/hashie/pull/189): Added Rash#fetch - [@medcat](https://github.com/medcat).
+* [#200](https://github.com/intridea/hashie/pull/200): Improved coercion: primitives and error handling - [@maxlinc](https://github.com/maxlinc).
+* [#204](https://github.com/intridea/hashie/pull/204): Added Hashie::Extensions::MethodOverridingWriter and MethodAccessWithOverride - [@michaelherold](https://github.com/michaelherold).
+* [#205](http://github.com/intridea/hashie/pull/205): Added Hashie::Extensions::Mash::SafeAssignment - [@michaelherold](https://github.com/michaelherold).
+* [#206](http://github.com/intridea/hashie/pull/206): Fixed stack overflow from repetitively including coercion in subclasses - [@michaelherold](https://github.com/michaelherold).
+* [#207](http://github.com/intridea/hashie/pull/207): Fixed inheritance of transformations in Trash - [@fobocaster](https://github.com/fobocaster).
+* [#209](http://github.com/intridea/hashie/pull/209): Added Hashie::Extensions::DeepFind - [@michaelherold](https://github.com/michaelherold).
+* [#69](https://github.com/intridea/hashie/pull/69): Fixed regression in assigning multiple properties in Hashie::Trash - [@michaelherold](https://github.com/michaelherold), [@einzige](https://github.com/einzige), [@dblock](https://github.com/dblock).
+
+## 3.2.0 (7/10/2014)
+
+* [#164](https://github.com/intridea/hashie/pull/164), [#165](https://github.com/intridea/hashie/pull/165), [#166](https://github.com/intridea/hashie/pull/166): Fixed stack overflow when coercing mashes that contain ActiveSupport::HashWithIndifferentAccess values - [@numinit](https://github.com/numinit), [@kgrz](https://github.com/kgrz).
 * [#177](https://github.com/intridea/hashie/pull/177): Added support for coercing enumerables and collections - [@gregory](https://github.com/gregory).
 * [#179](https://github.com/intridea/hashie/pull/179): Mash#values_at will convert each key before doing the lookup - [@nahiluhmot](https://github.com/nahiluhmot).
 * [#184](https://github.com/intridea/hashie/pull/184): Allow ranges on Rash to match all Numeric types - [@medcat](https://github.com/medcat).
 * [#187](https://github.com/intridea/hashie/pull/187): Automatically require version - [@medcat](https://github.com/medcat).
-* Integrated [axiom-types](https://github.com/dkubb/axiom-types) to provide constraint checking for property values [@d-tw](https://github.com/d-tw).
-* Your contribution here.
+* [#190](https://github.com/intridea/hashie/issues/190): Fixed `coerce_key` with `from` Trash feature and Coercion extension - [@gregory](https://github.com/gregory).
+* [#192](https://github.com/intridea/hashie/pull/192): Fixed StringifyKeys#stringify_keys! to recursively stringify keys of embedded ::Hash types - [@dblock](https://github.com/dblock).
 
-## 3.1 (6/25/2014)
+## 3.1.0 (6/25/2014)
 
 * [#169](https://github.com/intridea/hashie/pull/169): Hash#to_hash will also convert nested objects that implement to_hash - [@gregory](https://github.com/gregory).
 * [#171](https://github.com/intridea/hashie/pull/171): Include Trash and Dash class name when raising `NoMethodError` - [@gregory](https://github.com/gregory).
@@ -16,7 +51,7 @@
 * [#173](https://github.com/intridea/hashie/pull/173): Auto include Dash::IndifferentAccess when IndiferentAccess is included in Dash - [@gregory](https://github.com/gregory).
 * [#174](https://github.com/intridea/hashie/pull/174): Fixed `from` and `transform_with` Trash features when IndifferentAccess is included - [@gregory](https://github.com/gregory).
 
-## 3.0 (6/3/2014)
+## 3.0.0 (6/3/2014)
 
 **Note:** This version introduces several backward incompatible API changes. See [UPGRADING](UPGRADING.md) for details.
 
@@ -28,6 +63,7 @@
 * [#149](https://github.com/intridea/hashie/issues/149): Allow IgnoreUndeclared and DeepMerge to be used with undeclared properties - [@jhaesus](https://github.com/jhaesus).
 
 ## 2.1.1 (4/12/2014)
+
 * [#144](https://github.com/intridea/hashie/issues/144): Fixed regression invoking `to_hash` with no parameters - [@mbleigh](https://github.com/mbleigh).
 
 ## 2.1.0 (4/6/2014)

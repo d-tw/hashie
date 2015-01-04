@@ -1,4 +1,10 @@
-# Hashie [![Build Status](https://secure.travis-ci.org/intridea/hashie.png)](http://travis-ci.org/intridea/hashie) [![Dependency Status](https://gemnasium.com/intridea/hashie.png)](https://gemnasium.com/intridea/hashie) [![Code Climate](https://codeclimate.com/github/intridea/hashie.png)](https://codeclimate.com/github/intridea/hashie)
+# Hashie
+
+[![Gem Version](http://img.shields.io/gem/v/hashie.svg)](http://badge.fury.io/rb/hashie)
+[![Build Status](http://img.shields.io/travis/intridea/hashie.svg)](https://travis-ci.org/intridea/hashie)
+[![Dependency Status](https://gemnasium.com/intridea/hashie.svg)](https://gemnasium.com/intridea/hashie)
+[![Code Climate](https://codeclimate.com/github/intridea/hashie.svg)](https://codeclimate.com/github/intridea/hashie)
+[![Coverage Status](https://codeclimate.com/github/intridea/hashie/badges/coverage.svg)](https://codeclimate.com/github/intridea/hashie)
 
 Hashie is a growing collection of tools that extend Hashes and make them more useful.
 
@@ -12,7 +18,7 @@ $ gem install hashie
 
 ## Upgrading
 
-You're reading the documentation for the next release of Hashie, which should be 3.1.1. Please read [UPGRADING](UPGRADING.md) when upgrading from a previous version. The current stable release is [3.1](https://github.com/intridea/hashie/blob/v3.1.0/README.md).
+You're reading the documentation for the next release of Hashie, which should be 3.3.2. Please read [UPGRADING](UPGRADING.md) when upgrading from a previous version. The current stable release is [3.3.1](https://github.com/intridea/hashie/blob/v3.3.1/README.md).
 
 ## Hash Extensions
 
@@ -96,9 +102,59 @@ tweet.relations.class # => Hash
 #    and Relation.new on each value since Relation doesn't define the `coerce` class method
 ```
 
+### Coercing Core Types
+
+Hashie handles coercion to the following by using standard conversion methods:
+
+| type     | method   |
+|----------|----------|
+| Integer  | `#to_i`  |
+| Float    | `#to_f`  |
+| Complex  | `#to_c`  |
+| Rational | `#to_r`  |
+| String   | `#to_s`  |
+| Symbol   | `#to_sym`|
+
+**Note**: The standard Ruby conversion methods are less strict than you may assume. For example, `:foo.to_i` raises an error but `"foo".to_i` returns 0.
+
+You can also use coerce from the following supertypes with `coerce_value`:
+- Integer
+- Numeric
+
+Hashie does not have built-in support for coercion boolean values, since Ruby does not have a built-in boolean type or standard method for to a boolean. You can coerce to booleans using a custom proc.
+
+### Coercion Proc
+
+You can use a custom coercion proc on either `#coerce_key` or `#coerce_value`. This is useful for coercing to booleans or other simple types without creating a new class and `coerce` method. For example:
+
+```ruby
+class Tweet < Hash
+  include Hashie::Extensions::Coercion
+  coerce_key :retweeted, ->(v) do
+    case v
+    when String
+      return !!(v =~ /^(true|t|yes|y|1)$/i)
+    when Numeric
+      return !v.to_i.zero?
+    else
+      return v == true
+    end
+  end
+end
+```
+
 ### KeyConversion
 
 The KeyConversion extension gives you the convenience methods of `symbolize_keys` and `stringify_keys` along with their bang counterparts. You can also include just stringify or just symbolize with `Hashie::Extensions::StringifyKeys` or `Hashie::Extensions::SymbolizeKeys`.
+
+Hashie also has a utility method for converting keys on a Hash without a mixin:
+
+```ruby
+Hashie.symbolize_keys! hash # => Symbolizes keys of hash.
+Hashie.symbolize_keys hash # => Returns a copy of hash with keys symbolized.
+Hashie.stringify_keys hash # => Stringifies keys of hash.
+Hashie.stringify_keys hash # => Returns a copy of hash with keys stringified.
+```
 
 ### MergeInitializer
 
@@ -117,6 +173,29 @@ h = MyHash.new
 h.abc = 'def'
 h.abc  # => 'def'
 h.abc? # => true
+```
+
+### MethodAccessWithOverride
+
+The MethodAccessWithOverride extension is like the MethodAccess extension, except that it allows you to override Hash methods. It aliases any overridden method with two leading underscores. To include only this overriding functionality, you can include the single module `Hashie::Extensions::MethodOverridingWriter`.
+
+```ruby
+class MyHash < Hash
+  include Hashie::Extensions::MethodAccess
+end
+
+class MyOverridingHash < Hash
+  include Hashie::Extensions::MethodAccessWithOverride
+end
+
+non_overriding = MyHash.new
+non_overriding.zip = 'a-dee-doo-dah'
+non_overriding.zip #=> [[['zip', 'a-dee-doo-dah']]]
+
+overriding = MyHash.new
+overriding.zip = 'a-dee-doo-dah'
+overriding.zip   #=> 'a-dee-doo-dah'
+overriding.__zip #=> [[['zip', 'a-dee-doo-dah']]]
 ```
 
 ### IndifferentAccess
@@ -159,15 +238,27 @@ class MyHash < Hash
   include Hashie::Extensions::DeepMerge
 end
 
-h1 = MyHash.new
-h2 = MyHash.new
-
-h1 = { x: { y: [4,5,6] }, z: [7,8,9] }
-h2 = { x: { y: [7,8,9] }, z: "xyz" }
+h1 = MyHash[{ x: { y: [4,5,6] }, z: [7,8,9] }]
+h2 = MyHash[{ x: { y: [7,8,9] }, z: "xyz" }]
 
 h1.deep_merge(h2) # => { x: { y: [7, 8, 9] }, z: "xyz" }
 h2.deep_merge(h1) # => { x: { y: [4, 5, 6] }, z: [7, 8, 9] }
 ```
+
+Like with Hash#merge in the standard library, a block can be provided to merge values:
+
+```ruby
+class MyHash < Hash
+  include Hashie::Extensions::DeepMerge
+end
+
+h1 = MyHash[{ a: 100, b: 200, c: { c1: 100 } }]
+h2 = MyHash[{ b: 250, c: { c1: 200 } }]
+
+h1.deep_merge(h2) { |key, this_val, other_val| this_val + other_val }
+# => { a: 100, b: 450, c: { c1: 300 } }
+```
+
 
 ### DeepFetch
 
@@ -190,15 +281,41 @@ user.deep_fetch :name, :first # => 'Bob'
 user.deep_fetch :name, :middle # => 'KeyError: Could not fetch middle'
 
 # using a default block
-user.deep_fetch :name, :middle { |key| 'default' }  # =>  'default'
+user.deep_fetch(:name, :middle) { |key| 'default' }  # =>  'default'
 
 # a nested array
 user.deep_fetch :groups, 1, :name # => 'Open source enthusiasts'
 ```
 
+### DeepFind
+
+This extension can be mixed in to provide for concise searching for keys within a deeply nested hash.
+
+It can also search through any Enumerable contained within the hash for objects with the specified key.
+
+Note: The searches are depth-first, so it is not guaranteed that a shallowly nested value will be found before a deeply nested value.
+
+```ruby
+user = {
+  name: { first: 'Bob', last: 'Boberts' },
+  groups: [
+    { name: 'Rubyists' },
+    { name: 'Open source enthusiasts' }
+  ]
+}
+
+user.extend Hashie::Extensions::DeepFind
+
+user.deep_find(:name)   #=> { first: 'Bob', last: 'Boberts' }
+user.deep_detect(:name) #=> { first: 'Bob', last: 'Boberts' }
+
+user.deep_find_all(:name) #=> [{ first: 'Bob', last: 'Boberts' }, 'Rubyists', 'Open source enthusiasts']
+user.deep_select(:name)   #=> [{ first: 'Bob', last: 'Boberts' }, 'Rubyists', 'Open source enthusiasts']
+```
+
 ## Mash
 
-Mash is an extended Hash that gives simple pseudo-object functionality that can be built from hashes and easily extended. It is designed to be used in RESTful API libraries to provide easy object-like access to JSON and XML parsed hashes.
+Mash is an extended Hash that gives simple pseudo-object functionality that can be built from hashes and easily extended. It is intended to give the user easier access to the objects within the Mash through a property-like syntax, while still retaining all Hash functionality.
 
 ### Example:
 
@@ -224,27 +341,110 @@ mash.inspect # => <Hashie::Mash>
 
 **Note:** The `?` method will return false if a key has been set to false or nil. In order to check if a key has been set at all, use the `mash.key?('some_key')` method instead.
 
+Please note that a Mash will not override methods through the use of the property-like syntax. This can lead to confusion if you expect to be able to access a Mash value through the property-like syntax for a key that conflicts with a method name. However, it protects users of your library from the unexpected behavior of those methods being overridden behind the scenes.
+
+### Example:
+
+```ruby
+mash = Hashie::Mash.new
+mash.name = "My Mash"
+mash.zip = "Method Override?"
+mash.zip # => [[["name", "My Mash"]], [["zip", "Method Override?"]]]
+```
+
+Mash allows you also to transform any files into a Mash objects.
+
+### Example:
+
+```yml
+#/etc/config/settings/twitter.yml
+development:
+  api_key: 'api_key'
+production:
+  api_key: <%= ENV['API_KEY'] %> #let's say that ENV['API_KEY'] is set to 'abcd'
+```
+
+```ruby
+mash = Mash.load('settings/twitter.yml')
+mash.development.api_key # => 'localhost'
+mash.development.api_key = "foo" # => <# RuntimeError can't modify frozen ...>
+mash.development.api_key? # => true
+```
+
+You can access a Mash from another class:
+
+```ruby
+mash = Mash.load('settings/twitter.yml')[ENV['RACK_ENV']]
+Twitter.extend mash.to_module # NOTE: if you want another name than settings, call: to_module('my_settings')
+Twitter.settings.api_key # => 'abcd'
+```
+
+You can use another parser (by default: YamlErbParser):
+
+```
+#/etc/data/user.csv
+id | name          | lastname
+---|------------- | -------------
+1  |John          | Doe
+2  |Laurent       | Garnier
+```
+
+```ruby
+mash = Mash.load('data/user.csv', parser: MyCustomCsvParser)
+# => { 1 => { name: 'John', lastname: 'Doe'}, 2 => { name: 'Laurent', lastname: 'Garnier' } }
+mash[1] #=> { name: 'John', lastname: 'Doe' }
+```
+
+### Mash Extension: SafeAssignment
+
+This extension can be mixed into a Mash to guard the attempted overwriting of methods by property setters. When mixed in, the Mash will raise an `ArgumentError` if you attempt to write a property with the same name as an existing method.
+
+#### Example:
+
+```ruby
+class SafeMash < ::Hashie::Mash
+  include Hashie::Extensions::Mash::SafeAssignment
+end
+
+safe_mash = SafeMash.new
+safe_mash.zip   = 'Test' # => ArgumentError
+safe_mash[:zip] = 'test' # => still ArgumentError
+```
+
 ## Dash
 
-Dash is an extended Hash that has a discrete set of defined properties and only those properties may be set on the hash. Additionally, you can set defaults for each property. You can also flag a property as required. Required properties will raise an exception if unset. 
+Dash is an extended Hash that has a discrete set of defined properties and only those properties may be set on the hash. Additionally, you can set defaults for each property. You can also flag a property as required. Required properties will raise an exception if unset. Another option is message for required properties, which allow you to add custom messages for required property.
 
 An array of valid values may also be defined for each property, assigning a value that is not included in the list will raise an exception. nil values are accepted, unless the property is also flagged as being required.
+
+You can also conditionally require certain properties by passing a Proc or Symbol. If a Proc is provided, it will be run in the context of the Dash instance. If a Symbol is provided, the value returned for the property or method of the same name will be evaluated. The property will be required if the result of the conditional is truthy.
 
 ### Example:
 
 ```ruby
 class Person < Hashie::Dash
   property :name, required: true
+  property :age, required: true, message: 'must be set.'
   property :email
+  property :phone, required: -> { email.nil? }, message: 'is required if email is not set.'
+  property :pants, required: :weekday?, message: 'are only required on weekdays.'
   property :occupation, default: 'Rubyist'
   property :native_language, in: ['English','Spanish','French']
+
+  def weekday?
+    [ Time.now.saturday?, Time.now.sunday? ].none?
+  end
 end
 
 p = Person.new # => ArgumentError: The property 'name' is required for this Dash.
+p = Person.new(name: 'Bob') # => ArgumentError: The property 'age' must be set.
 
-p = Person.new(name: "Bob")
-p.name # => 'Bob'
-p.name = nil                 # => ArgumentError: The property 'name' is required for this Dash.
+
+p = Person.new(name: "Bob", age: 18)
+p.name         # => 'Bob'
+p.name = nil   # => ArgumentError: The property 'name' is required for this Dash.
+p.age          # => 18
+p.age = nil    # => ArgumentError: The property 'age' must be set.
 p.email = 'abc@def.com'
 p.occupation                 # => 'Rubyist'
 p.email                      # => 'abc@def.com'

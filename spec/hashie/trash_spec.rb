@@ -29,7 +29,7 @@ describe Hashie::Trash do
     end
 
     it 'maintains translations hash mapping from the original to the translated name' do
-      expect(TrashTest.translations[:firstName]).to eq :first_name
+      expect(TrashTest.translations[:firstName]).to eq(:first_name)
     end
 
     it 'maintains inverse translations hash mapping from the translated to the original name' do
@@ -110,7 +110,7 @@ describe Hashie::Trash do
 
   describe 'translating properties using a proc' do
     class TrashLambdaTest < Hashie::Trash
-      property :first_name, from: :firstName, with: lambda { |value| value.reverse }
+      property :first_name, from: :firstName, with: ->(value) { value.reverse }
     end
 
     let(:lambda_trash) { TrashLambdaTest.new }
@@ -134,9 +134,32 @@ describe Hashie::Trash do
     end
   end
 
+  describe 'translating multiple properties using a proc' do
+    class SomeDataModel < Hashie::Trash
+      property :value_a, from: :config, with: ->(config) { config.a }
+      property :value_b, from: :config, with: ->(config) { config.b }
+    end
+
+    ConfigDataModel = Struct.new(:a, :b)
+
+    subject { SomeDataModel.new(config: ConfigDataModel.new('value in a', 'value in b')) }
+
+    it 'translates the first key' do
+      expect(subject.value_a).to eq 'value in a'
+    end
+
+    it 'translates the second key' do
+      expect(subject.value_b).to eq 'value in b'
+    end
+
+    it 'maintains translations hash mapping from the original to the translated name' do
+      expect(SomeDataModel.translations).to eq(config: [:value_a, :value_b])
+    end
+  end
+
   describe 'uses with or transform_with interchangeably' do
     class TrashLambdaTestTransformWith < Hashie::Trash
-      property :first_name, from: :firstName, transform_with: lambda { |value| value.reverse }
+      property :first_name, from: :firstName, transform_with: ->(value) { value.reverse }
     end
 
     let(:lambda_trash) { TrashLambdaTestTransformWith.new }
@@ -154,7 +177,7 @@ describe Hashie::Trash do
 
   describe 'translating properties without from option using a proc' do
     class TrashLambdaTestWithProperties < Hashie::Trash
-      property :first_name, transform_with: lambda { |value| value.reverse }
+      property :first_name, transform_with: ->(value) { value.reverse }
     end
 
     let(:lambda_trash) { TrashLambdaTestWithProperties.new }
@@ -170,7 +193,7 @@ describe Hashie::Trash do
 
     context 'when :from option is given' do
       class TrashLambdaTest3 < Hashie::Trash
-        property :first_name, from: :firstName, transform_with: lambda { |value| value.reverse }
+        property :first_name, from: :firstName, transform_with: ->(value) { value.reverse }
       end
 
       it 'does not override the :from option in the constructor' do
@@ -182,7 +205,42 @@ describe Hashie::Trash do
         t.first_name = 'Michael'
         expect(t.first_name).to eq 'Michael'
       end
+    end
+  end
 
+  describe 'inheritable transforms' do
+    class TransformA < Hashie::Trash
+      property :some_value, transform_with: ->(v) { v.to_i }
+    end
+
+    class TransformB < TransformA
+      property :some_other_value, transform_with: ->(v) { v.to_i }
+    end
+
+    class TransformC < TransformB
+      property :some_value, transform_with: ->(v) { -v.to_i }
+    end
+
+    it 'inherit properties transforms' do
+      expect(TransformB.new(some_value: '123', some_other_value: '456').some_value).to eq(123)
+    end
+
+    it 'replaces property transform' do
+      expect(TransformC.new(some_value: '123', some_other_value: '456').some_value).to eq(-123)
+    end
+  end
+
+  describe 'inheritable translations' do
+    class TranslationA < Hashie::Trash
+      property :some_value, from: 'someValue', with: ->(v) { v.to_i }
+    end
+
+    class TranslationB < TranslationA
+      property :some_other_value, from: 'someOtherValue'
+    end
+
+    it 'inherit properties translations' do
+      expect(TranslationB.new('someValue' => '123').some_value).to eq(123)
     end
   end
 
@@ -192,5 +250,19 @@ describe Hashie::Trash do
         property :first_name, from: :first_name
       end
     end.to raise_error(ArgumentError)
+  end
+
+  context 'when subclassing' do
+    class Person < Hashie::Trash
+      property :first_name, from: :firstName
+    end
+
+    class Hobbit < Person; end
+
+    subject { Hobbit.new(firstName: 'Frodo') }
+
+    it 'keeps translation definitions in subclasses' do
+      expect(subject.first_name).to eq('Frodo')
+    end
   end
 end

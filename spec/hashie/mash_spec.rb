@@ -71,6 +71,16 @@ describe Hashie::Mash do
     expect(subject.abc('foobar')).to eq 123
   end
 
+  # Added due to downstream gems assuming indifferent access to be true for Mash
+  # When this is not, bump major version so that downstream gems can target
+  # correct version and fix accordingly.
+  # See https://github.com/intridea/hashie/pull/197
+  it 'maintains indifferent access when nested' do
+    subject[:a] = { b: 'c' }
+    expect(subject[:a][:b]).to eq 'c'
+    expect(subject[:a]['b']).to eq 'c'
+  end
+
   it 'returns a Hashie::Mash when passed a bang method to a non-existenct key' do
     expect(subject.abc!.is_a?(Hashie::Mash)).to be_truthy
   end
@@ -178,6 +188,12 @@ describe Hashie::Mash do
       it 'accepts a block' do
         duped = subject.merge(details: { address: 'Pasadena CA' }) { |_, oldv, newv| [oldv, newv].join(', ') }
         expect(duped.details.address).to eq 'Nowhere road, Pasadena CA'
+      end
+
+      it 'copies values for non-duplicate keys when a block is supplied' do
+        duped = subject.merge(details: { address: 'Pasadena CA', state: 'West Thoughtleby' }) { |_, oldv, _| oldv }
+        expect(duped.details.address).to eq 'Nowhere road'
+        expect(duped.details.state).to eq 'West Thoughtleby'
       end
     end
 
@@ -386,6 +402,38 @@ describe Hashie::Mash do
       expect(initial.test?).to be_truthy
     end
 
+    it 'allows assignment of an empty array in a default block' do
+      initial = Hashie::Mash.new { |h, k| h[k] = [] }
+      initial.hello << 100
+      expect(initial.hello).to eq [100]
+      initial['hi'] << 100
+      expect(initial['hi']).to eq [100]
+    end
+
+    it 'allows assignment of a non-empty array in a default block' do
+      initial = Hashie::Mash.new { |h, k| h[k] = [100] }
+      initial.hello << 200
+      expect(initial.hello).to eq [100, 200]
+      initial['hi'] << 200
+      expect(initial['hi']).to eq [100, 200]
+    end
+
+    it 'allows assignment of an empty hash in a default block' do
+      initial = Hashie::Mash.new { |h, k| h[k] = {} }
+      initial.hello[:a] = 100
+      expect(initial.hello).to eq Hashie::Mash.new(a: 100)
+      initial[:hi][:a] = 100
+      expect(initial[:hi]).to eq Hashie::Mash.new(a: 100)
+    end
+
+    it 'allows assignment of a non-empty hash in a default block' do
+      initial = Hashie::Mash.new { |h, k| h[k] = { a: 100 } }
+      initial.hello[:b] = 200
+      expect(initial.hello).to eq Hashie::Mash.new(a: 100, b: 200)
+      initial[:hi][:b] = 200
+      expect(initial[:hi]).to eq Hashie::Mash.new(a: 100, b: 200)
+    end
+
     it 'converts Hashie::Mashes within Arrays back to Hashes' do
       initial_hash = { 'a' => [{ 'b' => 12, 'c' => ['d' => 50, 'e' => 51] }, 23] }
       converted = Hashie::Mash.new(initial_hash)
@@ -496,6 +544,98 @@ describe Hashie::Mash do
     context 'when a key is given that is not in the Mash' do
       it 'returns nil for that value' do
         expect(mash.values_at('key_one', :key_three)).to eq([1, nil])
+      end
+    end
+  end
+
+  describe '.load(filename, options = {})' do
+    let(:config) do
+      {
+        'production' => {
+          'foo' => 'production_foo'
+        }
+      }
+    end
+    let(:path) { 'database.yml' }
+    let(:parser) { double(:parser) }
+
+    subject { described_class.load(path, parser: parser) }
+
+    before do |ex|
+      unless ex.metadata == :test_cache
+        described_class.instance_variable_set('@_mashes', nil) # clean the cached mashes
+      end
+    end
+
+    context 'if the file exists' do
+      before do
+        expect(File).to receive(:file?).with(path).and_return(true)
+        expect(parser).to receive(:perform).with(path).and_return(config)
+      end
+
+      it { is_expected.to be_a(Hashie::Mash) }
+
+      it 'return a Mash from a file' do
+        expect(subject.production).not_to be_nil
+        expect(subject.production.keys).to eq config['production'].keys
+        expect(subject.production.foo).to eq config['production']['foo']
+      end
+
+      it 'freeze the attribtues' do
+        expect { subject.production = {} }.to raise_exception(RuntimeError, /can't modify frozen/)
+      end
+    end
+
+    context 'if the fils does not exists' do
+      before do
+        expect(File).to receive(:file?).with(path).and_return(false)
+      end
+
+      it 'raise an ArgumentError' do
+        expect { subject }.to raise_exception(ArgumentError)
+      end
+    end
+
+    describe 'results are cached' do
+      let(:parser) { double(:parser) }
+
+      subject { described_class.load(path, parser: parser) }
+
+      before do
+        expect(File).to receive(:file?).with(path).and_return(true)
+        expect(File).to receive(:file?).with("#{path}+1").and_return(true)
+        expect(parser).to receive(:perform).once.with(path).and_return(config)
+        expect(parser).to receive(:perform).once.with("#{path}+1").and_return(config)
+      end
+
+      it 'cache the loaded yml file', :test_cache do
+        2.times do
+          expect(subject).to be_a(described_class)
+          expect(described_class.load("#{path}+1", parser: parser)).to be_a(described_class)
+        end
+
+        expect(subject.object_id).to eq subject.object_id
+      end
+    end
+  end
+
+  describe '#to_module(mash_method_name)' do
+    let(:mash) { described_class.new }
+    subject { Class.new.extend mash.to_module }
+
+    it 'defines a settings method on the klass class that extends the module' do
+      expect(subject).to respond_to(:settings)
+      expect(subject.settings).to eq mash
+    end
+
+    context 'when a settings_method_name is set' do
+      let(:mash_method_name) { 'config' }
+
+      subject { Class.new.extend mash.to_module(mash_method_name) }
+
+      it 'defines a settings method on the klass class that extends the module' do
+        expect(subject).to respond_to(mash_method_name.to_sym)
+        expect(subject.send(mash_method_name.to_sym)).to eq mash
       end
     end
   end

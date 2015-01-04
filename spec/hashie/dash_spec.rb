@@ -34,6 +34,10 @@ class SubclassedTest < DashTest
   property :last_name, required: true
 end
 
+class RequiredMessageTest < DashTest
+  property :first_name, required: true, message: 'must be set.'
+end
+
 class DashDefaultTest < Hashie::Dash
   property :aliases, default: ['Snake']
 end
@@ -47,11 +51,20 @@ describe DashTest do
     [ArgumentError, "The property '#{property}' is required for #{subject.class.name}."]
   end
 
+  def property_required_custom_error(property)
+    [ArgumentError, "The property '#{property}' must be set."]
+  end
+
+  def property_message_without_required_error
+    [ArgumentError, 'The :message option should be used with :required option.']
+  end
+
   def no_property_error(property)
     [NoMethodError, "The property '#{property}' is not defined for #{subject.class.name}."]
   end
 
   subject { DashTest.new(first_name: 'Bob', email: 'bob@example.com') }
+  let(:required_message) { RequiredMessageTest.new(first_name: 'Bob') }
 
   it('subclasses Hashie::Hash') { should respond_to(:to_mash) }
 
@@ -83,13 +96,29 @@ describe DashTest do
     expect { subject.first_name = nil }.to raise_error(*property_required_error('first_name'))
   end
 
+  it 'errors out when message added to not required property' do
+    expect do
+      class DashMessageOptionWithoutRequiredTest < Hashie::Dash
+        property :first_name, message: 'is required.'
+      end
+    end.to raise_error(*property_message_without_required_error)
+
+    expect do
+      class DashMessageOptionWithoutRequiredTest < Hashie::Dash
+        property :first_name, required: false, message: 'is required.'
+      end
+    end.to raise_error(*property_message_without_required_error)
+  end
+
   context 'writing to properties' do
     it 'fails writing a required property to nil' do
       expect { subject.first_name = nil }.to raise_error(*property_required_error('first_name'))
+      expect { required_message.first_name = nil }.to raise_error(*property_required_custom_error('first_name'))
     end
 
     it 'fails writing a required property to nil using []=' do
       expect { subject[:first_name] = nil }.to raise_error(*property_required_error('first_name'))
+      expect { required_message[:first_name] = nil }.to raise_error(*property_required_custom_error('first_name'))
     end
 
     it 'fails writing to a non-existent property using []=' do
@@ -269,7 +298,7 @@ describe DashTest do
     end
 
     it 'leaves only specified keys and keys with default values' do
-      expect(subject.keys.sort_by { |key| key.to_s }).to eq [:count, :first_name]
+      expect(subject.keys.sort_by(&:to_s)).to eq [:count, :first_name]
       expect(subject.email).to be_nil
       expect(subject.count).to eq 0
     end
@@ -324,7 +353,6 @@ describe DashTest do
       end
     end
   end
-
 end
 
 describe Hashie::Dash, 'inheritance' do
@@ -371,7 +399,6 @@ describe Hashie::Dash, 'inheritance' do
     expect(@bottom.new).to have_key(:echo)
     expect(@bottom.new).to_not have_key('echo')
   end
-
 end
 
 describe SubclassedTest do
@@ -393,6 +420,25 @@ describe SubclassedTest do
 
   it "didn't override superclass inheritance logic" do
     expect(described_class.instance_variable_get('@inheritance_test')).to be_truthy
+  end
+end
+
+class ConditionallyRequiredTest < Hashie::Dash
+  property :username
+  property :password, required: -> { !username.nil? }, message: 'must be set, too.'
+end
+
+describe ConditionallyRequiredTest do
+  it 'does not allow a conditionally required property to be set to nil if required' do
+    expect { ConditionallyRequiredTest.new(username: 'bob.smith', password: nil) }.to raise_error(ArgumentError, "The property 'password' must be set, too.")
+  end
+  
+  it 'allows a conditionally required property to be set to nil if not required' do
+    expect { ConditionallyRequiredTest.new(username: nil, password: nil) }.not_to raise_error
+  end
+  
+  it 'allows a conditionally required property to be set if required' do
+    expect { ConditionallyRequiredTest.new(username: 'bob.smith', password: '$ecure!') }.not_to raise_error
   end
 end
 

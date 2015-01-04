@@ -1,7 +1,15 @@
-require 'rubygems'
+if ENV['CI']
+  require 'codeclimate-test-reporter'
+  CodeClimate::TestReporter.start
+end
 
-$LOAD_PATH.unshift(File.dirname(__FILE__))
-$LOAD_PATH.unshift(File.join(File.dirname(__FILE__), '..', 'lib'))
+require 'pry'
 
-require 'hashie'
 require 'rspec'
+require 'hashie'
+
+RSpec.configure do |config|
+  config.expect_with :rspec do |expect|
+    expect.syntax = :expect
+  end
+end

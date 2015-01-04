@@ -29,31 +29,43 @@ module Hashie
     #
     # * <tt>:required</tt> - Specify the value as required for this
     #   property, to raise an error if a value is unset in a new or
-    #   existing Dash.
+    #   existing Dash. If a Proc is provided, it will be run in the
+    #   context of the Dash instance. If a Symbol is provided, the
+    #   property it represents must not be nil. The property is only
+    #   required if the value is truthy.
+    #
+    # * <tt>:message</tt> - Specify custom error message for required property
     #
     
     def self.property(property_name, options = {})
       properties << property_name
-      options = property_options[property_name.to_sym] = DashOptions.new(options).freeze
+      options = property_options[property_name.to_sym] = DashOptions.new(options)
     
       if options.key?(:default)
         defaults[property_name] = options[:default]
       elsif defaults.key?(property_name)
         defaults.delete property_name
       end
-    
+
       build_property_method(property_name)
     
       if defined? @subclasses
         @subclasses.each { |klass| klass.property(property_name, options) }
       end
       
-      required_properties << property_name               if options.key?(:required) ? options[:required] : false
       set_constraint(property_name, options.constraints) if options.key?(:constraints)
+      
+      condition = options.delete(:required)
+      if condition
+        message = options.delete(:message) || "is required for #{name}."
+        required_properties[property_name] = { condition: condition, message: message }
+      else
+        fail ArgumentError, 'The :message option should be used with :required option.' if options.key?(:message)
+      end
     end
     
     def self.build_property_method(property_name)
-      unless instance_methods.map { |m| m.to_s }.include?("#{property_name}=")
+      unless instance_methods.map(&:to_s).include?("#{property_name}=")
         define_method(property_name) { |&block| self.[](property_name, &block) }
         property_assignment = property_name.to_s.concat('=').to_sym
         define_method(property_assignment) { |value| self.[]=(property_name, value) }
@@ -81,11 +93,11 @@ module Hashie
         end
       end
 
-      [:properties, :required_properties].each do |method|
+      [:properties].each do |method|
         method_builder.call(method, Set.new)
       end
 
-      [:defaults, :property_constraints, :property_options].each do |method|
+      [:defaults, :property_constraints, :property_options, :required_properties].each do |method|
         method_builder.call(method, {})
       end
     end
@@ -111,7 +123,7 @@ module Hashie
     # Check to see if the specified property is
     # required.
     def self.required?(name)
-      required_properties.include? name
+      required_properties.key? name
     end
 
     # Check to see if the specified property is
@@ -316,7 +328,7 @@ module Hashie
     end
 
     def assert_required_attributes_set!
-      self.class.required_properties.each do |required_property|
+      self.class.required_properties.each_key do |required_property|
         assert_property_set!(required_property)
       end
     end
@@ -324,11 +336,11 @@ module Hashie
     alias_method :assert_required_properties_set!, :assert_required_attributes_set!
 
     def assert_property_set!(property)
-      fail_property_required_error!(property) if send(property).nil?
+      fail_property_required_error!(property) if send(property).nil? && required?(property)
     end
 
     def assert_property_required!(property, value)
-      fail_property_required_error!(property) if self.class.required?(property) && value.nil?
+      fail_property_required_error!(property) if value.nil? && required?(property)
     end
 
     def assert_property_within_constraints!(property, value)
@@ -347,11 +359,22 @@ module Hashie
     end
 
     def fail_property_required_error!(property)
-      fail ArgumentError, "The property '#{property}' is required for #{self.class.name}."
+      fail ArgumentError, "The property '#{property}' #{self.class.required_properties[property][:message]}"
     end
 
     def fail_no_property_error!(property)
       fail NoMethodError, "The property '#{property}' is not defined for #{self.class.name}."
+    end
+
+    def required?(property)
+      return false unless self.class.required?(property)
+
+      condition = self.class.required_properties[property][:condition]
+      case condition
+      when Proc   then !!(instance_exec(&condition))
+      when Symbol then !!(send(condition))
+      else             !!(condition)
+      end
     end
 
     def fail_property_outside_constraints!(property, value)
@@ -366,7 +389,8 @@ module Hashie
   class DashOptions < Dash
     property :default 
     property :constraints
-    property :required, default: false, constraints: { in: [true, false] }
+    property :required, default: false
+    property :message
     property :proc_cache_results,  default: true, constraints: { in: [true, false] }
     property :proc_call_on_access, default: true, constraints: { in: [true, false] }
   end

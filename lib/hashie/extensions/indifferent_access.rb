@@ -29,11 +29,11 @@ module Hashie
         end
 
         base.class_eval do
-          alias_method :regular_writer, :[]=
+          alias_method :regular_writer, :[]= unless method_defined?(:regular_writer)
           alias_method :[]=, :indifferent_writer
           alias_method :store, :indifferent_writer
           %w(default update replace fetch delete key? values_at).each do |m|
-            alias_method "regular_#{m}", m
+            alias_method "regular_#{m}", m unless method_defined?("regular_#{m}")
             alias_method m, "indifferent_#{m}"
           end
 
@@ -83,9 +83,9 @@ module Hashie
 
       def convert_value(value)
         if hash_lacking_indifference?(value)
-          IndifferentAccess.inject(value.dup)
+          IndifferentAccess.inject!(value)
         elsif value.is_a?(::Array)
-          value.dup.replace(value.map { |e| convert_value(e) })
+          value.replace(value.map { |e| convert_value(e) })
         else
           value
         end
@@ -107,8 +107,8 @@ module Hashie
         regular_writer convert_key(key), convert_value(value)
       end
 
-      def indifferent_fetch(key, *args)
-        regular_fetch convert_key(key), *args
+      def indifferent_fetch(key, *args, &block)
+        regular_fetch convert_key(key), *args, &block
       end
 
       def indifferent_delete(key)
@@ -137,14 +137,14 @@ module Hashie
 
       def hash_lacking_indifference?(other)
         other.is_a?(::Hash) &&
-        !(other.respond_to?(:indifferent_access?) &&
-          other.indifferent_access?)
+          !(other.respond_to?(:indifferent_access?) &&
+            other.indifferent_access?)
       end
 
       def hash_with_indifference?(other)
         other.is_a?(::Hash) &&
-        other.respond_to?(:indifferent_access?) &&
-        other.indifferent_access?
+          other.respond_to?(:indifferent_access?) &&
+          other.indifferent_access?
       end
     end
   end

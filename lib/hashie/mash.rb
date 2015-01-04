@@ -58,6 +58,26 @@ module Hashie
     include Hashie::Extensions::PrettyInspect
 
     ALLOWED_SUFFIXES = %w(? ! = _)
+    SUFFIXES_PARSER  = /(.*?)([#{ALLOWED_SUFFIXES.join}]?)$/
+
+    def self.load(path, options = {})
+      @_mashes ||= new
+
+      return @_mashes[path] if @_mashes.key?(path)
+      fail ArgumentError, "The following file doesn't exist: #{path}" unless File.file?(path)
+
+      parser = options.fetch(:parser) {  Hashie::Extensions::Parsers::YamlErbParser }
+      @_mashes[path] = new(parser.perform(path)).freeze
+    end
+
+    def to_module(mash_method_name = :settings)
+      mash = self
+      Module.new do |m|
+        m.send :define_method, mash_method_name.to_sym do
+          mash
+        end
+      end
+    end
 
     alias_method :to_s, :inspect
 
@@ -86,6 +106,7 @@ module Hashie
     # Retrieves an attribute set in the Mash. Will convert
     # any key passed in to a string before retrieving.
     def custom_reader(key)
+      default_proc.call(self, key) if default_proc && !key?(key)
       value = regular_reader(convert_key(key))
       yield value if block_given?
       value
@@ -161,7 +182,7 @@ module Hashie
           custom_reader(key).deep_update(v, &blk)
         else
           value = convert_value(v, true)
-          value = convert_value(blk.call(key, self[k], value), true) if blk
+          value = convert_value(blk.call(key, self[k], value), true) if blk && self.key?(k)
           custom_writer(key, value, false)
         end
       end
@@ -170,6 +191,11 @@ module Hashie
     alias_method :deep_merge!, :deep_update
     alias_method :update, :deep_update
     alias_method :merge!, :update
+
+    # Assigns a value to a key
+    def assign_property(name, value)
+      self[name] = value
+    end
 
     # Performs a shallow_update on a duplicate of the current mash
     def shallow_merge(other_hash)
@@ -212,7 +238,7 @@ module Hashie
       name, suffix = method_suffix(method_name)
       case suffix
       when '='
-        self[name] = args.first
+        assign_property(name, args.first)
       when '?'
         !!self[name]
       when '!'
@@ -220,15 +246,14 @@ module Hashie
       when '_'
         underbang_reader(name)
       else
-        default(method_name)
+        self[method_name]
       end
     end
 
     protected
 
     def method_suffix(method_name)
-      suffixes_regex = ALLOWED_SUFFIXES.join
-      match = method_name.to_s.match(/(.*?)([#{suffixes_regex}]?)$/)
+      match = method_name.to_s.match(SUFFIXES_PARSER)
       [match[1], match[2]]
     end
 
