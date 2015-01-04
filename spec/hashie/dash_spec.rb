@@ -714,3 +714,15 @@ describe CalledProcDashTest do
     it { expect(subject.uncalled_property).to be_a(Proc) }
   end
 end
+
+context 'Dynamic Dash Class' do
+  it 'define property' do
+    klass       = Class.new(Hashie::Dash)
+    my_property = 'my_property'
+    my_orig     = my_property.dup
+
+    klass.property(my_property)
+
+    expect(my_property).to eq(my_orig)
+  end
+end
